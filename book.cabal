@@ -25,6 +25,7 @@ executable book
                        Chapters 
                        IndexPage
                        Misc 
+                       Glossary
 
   other-extensions:    OverloadedStrings
 
