@@ -11,21 +11,71 @@ nextChapter: /ru/index.html
 
 Предназначен он не для того, чтобы в подробностях узнать что делает та или иная конструкция, поскольку классификация ограничена материалом этой книги. Для подробностей есть другие ресурсы. Это указатель для облегченной навигации. 
 -}
-module Glossary {
+module Glossary (
     instructions
     ,functions
-    } where 
+    ,dirWalk
+) where 
     
     
 import System.FilePath
 import System.Directory
+import Control.Monad 
+import Data.List.Split
+import qualified Data.List as L
 
+
+
+pathToChapters = "../chapters/ru"
+
+type Contents = String
+data SubChapter = SubChapter FilePath Contents
+
+--ищем во всех поддиректориях файлики с расширением .md
+dirWalk :: FilePath -> IO [FilePath]
+dirWalk top   = do
+  isDirectory <- doesDirectoryExist top
+  if isDirectory
+    then do
+      files <- getDirectoryContents top
+      let nonDotFiles = filter (not . (`elem` [".", ".."])) files 
+      mdFilesFrom <-  mapM (\file -> dirWalk (top </> file)) nonDotFiles
+      let mdFiles = (fmap (top </>) $ filter (L.isSuffixOf ".md") nonDotFiles) ++ concat mdFilesFrom
+      return mdFiles      
+  else do
+    return []
+
+
+--получаем список файлов в которых встречается конструкция
+ 
+corresponds :: FilePath -> [Function] -> [Instruction] -> IO [Correspond]
+corresponds path funcs instrs = do 
+    mDs <- dirWalk pathToChapters
+    forM mDs (\md -> do
+        hs <- hsInFile
+        return hs) 
+
+--забираем хаскельный код из файла        
+hsInFile :: FilePath -> IO HsInFile 
+hsInFile path = do
+    file <- readFile path
+    return $ H path $ foldl1 (++) $ tail $ fmap head $ fmap  (splitOn "'''") $ splitOn "'''haskell" file
+
+--Смотрим, что и где встречается.
+--попроьуем zip )
+    
+--представление конструкций
 type FullName = String
 type NameInBook = String
 type Tag = String
 
 data Function       = F FullName NameInBook [Tag]
 data Instruction    = I NameInBook [Tag]
+
+data Correspond     = C Tag FullName [FilePath] --где встречается
+
+type HsCode         = String
+data HsInFile       = H FilePath HsCode
 
 class Construction c where
     inBook :: c -> NameInBook
@@ -42,7 +92,9 @@ instance Construction Instruction where
     inHackage (I a _) =   a
     tags (I _ a) =        a    
 
-pathToChapters = "../chapters/ru"
+
+
+
     
 
 instructions =  
@@ -162,9 +214,6 @@ functions =
     ,F "Control.Monad.Trans.Either.right"   "right"             ["Исключения"]
     ,F "Data.Maybe.fromJust"                "fromJust"          ["Исключения"]]
     
-    
-
- 
 {-Section "Веб"
     ["fPutStr"
     ,"acceptLoop"
@@ -209,20 +258,5 @@ Section "Всякое нужное"
     ,"modify"]
 ]-}
 
-
-
-
-
-
-
-
- 
-
-
-
-
-
- 
- 
 
 
