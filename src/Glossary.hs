@@ -29,7 +29,7 @@ import qualified Data.List as L
 pathToChapters = "../chapters/ru"
 
 type Contents = String
-data SubChapter = SubChapter FilePath Contents
+
 
 --ищем во всех поддиректориях файлики с расширением .md
 dirWalk :: FilePath -> IO [FilePath]
@@ -48,171 +48,183 @@ dirWalk top   = do
 
 --получаем список файлов в которых встречается конструкция
  
-corresponds :: FilePath -> [Function] -> [Instruction] -> IO [Correspond]
-corresponds path funcs instrs = do 
+corresponds :: FilePath -> [Construction] -> IO [Correspond]
+corresponds path  constrs = do 
     mDs <- dirWalk pathToChapters
+ 
     forM mDs (\md -> do
-        hs <- hsInFile
-        return hs) 
+        hs <- hsInFile md
+        fmap  (\constr -> do
+            Corr (head (tags constr))  (inHackage constr)  path ) (filter (hasMatches hs) 
+            constrs)) 
+        
+ 
+
+--Встречается ли конструкция в данном тексте?
+hasMatches :: Constructions a => HsCode -> a -> Bool
+hasMatches code constr = 
+    elem  (inBook constr)  (words code )            
 
 --забираем хаскельный код из файла        
 hsInFile :: FilePath -> IO HsInFile 
-hsInFile path = do
-    file <- readFile path
-    return $ H path $ foldl1 (++) $ tail $ fmap head $ fmap  (splitOn "'''") $ splitOn "'''haskell" file
+hsInFile fspath = do
+    file <- readFile fspath
+    return $ foldl1 (++) $ tail $ fmap head $ fmap  (splitOn "'''") $ splitOn "'''haskell" file
 
---Смотрим, что и где встречается.
---попроьуем zip )
+
     
+        
+unpackConstructions :: Constructions a => [a] -> [a]
+unpackConstructions (x:xs) =  unpackConstructions xs ++ reconstruct x
+unpackConstructions (x:[]) = [x]
+
+
+
 --представление конструкций
 type FullName = String
 type NameInBook = String
 type Tag = String
 
-data Function       = F FullName NameInBook [Tag]
-data Instruction    = I NameInBook [Tag]
 
-data Correspond     = C Tag FullName [FilePath] --где встречается
+data Construction       = C FullName NameInBook [Tag]
+
+data Correspond     = Corr Tag FullName FilePath --где встречается
 
 type HsCode         = String
-data HsInFile       = H FilePath HsCode
+type HsInFile       = String
 
-class Construction c where
+class Constructions c where
     inBook :: c -> NameInBook
     inHackage :: c -> FullName
     tags :: c -> [Tag]
+    reconstruct :: c -> [c]
     
-instance Construction Function where
-    inBook (F _ a _) =      a
-    inHackage (F a _ _) =   a
-    tags (F _ _ a) =        a
-
-instance Construction Instruction where
-    inBook (I a _) =      a
-    inHackage (I a _) =   a
-    tags (I _ a) =        a    
+instance Constructions Construction where
+    inBook (C _ a _) =      a
+    inHackage (C a _ _) =   a
+    tags (C _ _ a) =        a
+    {-    reconstruct C "a" "a" ["1", "2"] = [C "a" "a" ["1"] , C "a" "a" ["2"]]    -}
+    reconstruct (C n1 n2 (x:xs)) =  reconstruct (C n1 n2 xs) ++ [C n1 n2 [x]]
+    reconstruct (C n1 n2 (x:[])) =  [C n1 n2 [x]]
 
 
 
 
     
 
-instructions =  
-    [I "type"                            ["Типы"]
-    ,I "data"                            ["Типы"]
-    ,I "newtype"                         ["Типы"]
-    ,I "class"                           ["Типы"]
-    ,I "instance"                        ["Типы"]
-    ,I "deriving"                        ["Типы"]
+constructions =  
+    [C "type"                               "type"              ["Инструкция", "Типы"]
+    ,C "data"                               "data"              ["Инструкция", "Типы"]
+    ,C "newtype"                            "newtype"           ["Инструкция", "Типы"]
+    ,C "class"                              "class"             ["Инструкция", "Типы"]
+    ,C "instance"                           "instance"          ["Инструкция", "Типы"]
+    ,C "deriving"                           "deriving"          ["Инструкция", "Типы"]
+                                                                
+    ,C "case"                               "case"              ["Инструкция", "Логика"]
+    ,C "if"                                 "if"                ["Инструкция", "Логика"]
+    ,C "then"                               "then"              ["Инструкция", "Логика"]
+    ,C "else"                               "else"              ["Инструкция", "Логика"]
+    ,C "|"                                  "|"                 ["Инструкция", "Логика"]
+    ,C "\\"                                 "\\"                ["Инструкция", "Подвыражения"]--это лямбда(?)
+    ,C "let"                                "let"               ["Инструкция", "Подвыражения"]
+    ,C "in"                                 "in"                ["Инструкция", "Подвыражения"]
+    ,C "where"                              "where"             ["Инструкция", "Подвыражения"]    
+    ,C "module"                             "module"            ["Инструкция", "Модули"]
+    ,C "import"                             "import"            ["Инструкция", "Модули"]
+    ,C "hiding"                             "hiding"            ["Инструкция", "Модули"]
+    ,C "as"                                 "as"                ["Инструкция", "Модули"]
+    ,C "qualified"                          "qualified"         ["Инструкция", "Модули"]
+    ,C "->"                                 "->"                ["Инструкция", "Всякое нужное"]
+    ,C "<-"                                 "<-"                ["Инструкция", "Всякое нужное"]
+    ,C "::"                                 "::"                ["Инструкция", "Всякое нужное"]
+                                                                
+    ,C "do"                                 "do"                ["Инструкция", "Всякое нужное"] 
+    ,C "="                                  "="                 ["Инструкция", "Всякое нужное"] 
+    
+    ,C "Prelude.maxBound"                   "maxBound"          ["Функция","Типы"]
+    ,C "Prelude.minBound"                   "minBound"          ["Функция","Типы"]
+    ,C "Prelude.elem"                       "elem"              ["Функция","Списки", "Строки"]
+    ,C "Prelude.filter"                     "filter"            ["Функция","Списки", "Строки"]
+    ,C "Prelude.length"                     "length"            ["Функция","Списки", "Строки"]
+    ,C "Prelude.takeWhile"                  "takeWhile"         ["Функция","Списки", "Строки"]
+    ,C "Prelude.foldl"                      "foldl"             ["Функция","Списки"]
+    ,C "Prelude.foldr"                      "foldr"             ["Функция","Списки"]
+    ,C "Prelude.foldl1"                     "foldl1"            ["Функция","Списки"]
+    ,C "Prelude.scanl"                      "scanl"             ["Функция","Списки"]
+    ,C "Prelude.scanr"                      "scanr"             ["Функция","Списки"]
+    ,C "Prelude.take"                       "take"              ["Функция","Списки", "Строки"]
+    ,C "Prelude.replicate"                  "replicate"         ["Функция","Списки", "Строки"]
+    ,C "Prelude.(++)"                       "++"                ["Функция","Списки", "Строки"]
+    ,C "Prelude.map"                        "map"               ["Функция","Списки"]
+    ,C "Prelude.fmap"                       "fmap"              ["Функция","Списки"]
+    ,C "Data.Functor.(<$>)"                 "<$>"               ["Функция","Списки"]
+    ,C "Prelude.(:)"                        ":"                 ["Функция","Списки"]
+    ,C "Prelude.repeat"                     "repeat"            ["Функция","Списки", "Строки"]
+    ,C "Prelude.!!"                         "!!"                ["Функция","Списки", "Строки"]
+    ,C "Data.List.Split.splitOn"            "splitOn"           ["Функция","Списки"]
+                                        
+    ,C "Data.Map.Lazy.fromList"             "M.fromList"        ["Функция","Словари"]
+    ,C "Data.Map.Lazy.lookup"               "M.lookup"          ["Функция","Словари"]
+    ,C "Data.Map.Lazy.empty"                "M.empty"           ["Функция","Словари"]
+    ,C "Data.Map.Lazy.insert"               "M.insert"          ["Функция","Словари"]
+    ,C "Data.Map.Lazy.insertWith"           "M.insertWith"      ["Функция","Словари"]
+    ,C "Data.Map.Lazy.adjust"               "M.adjust"          ["Функция","Словари"]
+    ,C "Data.Map.Lazy.delete"               "M.delete"          ["Функция","Словари"]
+    ,C "Data.Map.Lazy.elems"                "M.elems"           ["Функция","Словари"]
+                                         
+    ,C "Data.Set.size"                      "S.size"            ["Функция","Множества(Set)"]
+    ,C "Data.Set.fromList"                  "S.fromList"        ["Функция","Множества(Set)"]
+                                         
+    ,C "Data.Char.toLower"                  "toLower"           ["Функция","Строки"]
+    ,C "Data.Char.toUpper"                  "toUpper"           ["Функция","Строки"]
+    ,C "Data.Char.digitToInt"               "digitToInt"        ["Функция","Строки"]
+    ,C "Data.String.Utils.replace"          "replace"           ["Функция","Строки"]
+    ,C "Prelude.read"                       "read"              ["Функция","Строки"]
+    ,C "Prelude.show"                       "show"              ["Функция","Строки"]
+                                              
+    ,C "Data.String.Utils.startswith"       "startswith"        ["Функция","Строки"]
                                        
-    ,I "case"                            ["Логика"]
-    ,I "if"                              ["Логика"]
-    ,I "then"                            ["Логика"]
-    ,I "else"                            ["Логика"]
-    ,I "|"                               ["Логика"]
-    ,I "\\"                              ["Подвыражения"]--это лямбда(?)
-    ,I "let"                             ["Подвыражения"]
-    ,I "in"                              ["Подвыражения"]
-    ,I "where"                           ["Подвыражения"]    
-    ,I "module"                          ["Модули"]
-    ,I "import"                          ["Модули"]
-    ,I "hiding"                          ["Модули"]
-    ,I "as"                              ["Модули"]
-    ,I "qualified"                       ["Модули"]
-    ,I "->"                              ["Всякое нужное"]
-    ,I "<-"                              ["Всякое нужное"]
-    ,I "::"                              ["Всякое нужное"]
-    
-    ,I "do"                              ["Всякое нужное"] 
-    ,I "="                               ["Всякое нужное"] 
-    ]
-
-
-functions = 
-    [F "Prelude.maxBound"                   "maxBound"          ["Типы"]
-    ,F "Prelude.minBound"                   "minBound"          ["Типы"]
-    ,F "Prelude.elem"                       "elem"              ["Списки", "Строки"]
-    ,F "Prelude.filter"                     "filter"            ["Списки", "Строки"]
-    ,F "Prelude.length"                     "length"            ["Списки", "Строки"]
-    ,F "Prelude.takeWhile"                  "takeWhile"         ["Списки", "Строки"]
-    ,F "Prelude.foldl"                      "foldl"             ["Списки"]
-    ,F "Prelude.foldr"                      "foldr"             ["Списки"]
-    ,F "Prelude.foldl1"                     "foldl1"            ["Списки"]
-    ,F "Prelude.scanl"                      "scanl"             ["Списки"]
-    ,F "Prelude.scanr"                      "scanr"             ["Списки"]
-    ,F "Prelude.take"                       "take"              ["Списки", "Строки"]
-    ,F "Prelude.replicate"                  "replicate"         ["Списки", "Строки"]
-    ,F "Prelude.(++)"                       "++"                ["Списки", "Строки"]
-    ,F "Prelude.map"                        "map"               ["Списки"]
-    ,F "Prelude.fmap"                       "fmap"              ["Списки"]
-    ,F "Data.Functor.(<$>)"                 "<$>"               ["Списки"]
-    ,F "Prelude.(:)"                        ":"                 ["Списки"]
-    ,F "Prelude.repeat"                     "repeat"            ["Списки", "Строки"]
-    ,F "Prelude.!!"                         "!!"                ["Списки", "Строки"]
-    ,F "Data.List.Split.splitOn"            "splitOn"           ["Списки"]
-        
-    ,F "Data.Map.Lazy.fromList"             "M.fromList"        ["Словари"]
-    ,F "Data.Map.Lazy.lookup"               "M.lookup"          ["Словари"]
-    ,F "Data.Map.Lazy.empty"                "M.empty"           ["Словари"]
-    ,F "Data.Map.Lazy.insert"               "M.insert"          ["Словари"]
-    ,F "Data.Map.Lazy.insertWith"           "M.insertWith"      ["Словари"]
-    ,F "Data.Map.Lazy.adjust"               "M.adjust"          ["Словари"]
-    ,F "Data.Map.Lazy.delete"               "M.delete"          ["Словари"]
-    ,F "Data.Map.Lazy.elems"                "M.elems"           ["Словари"]
-            
-    ,F "Data.Set.size"                      "S.size"            ["Множества(Set)"]
-    ,F "Data.Set.fromList"                  "S.fromList"        ["Множества(Set)"]
-            
-    ,F "Data.Char.toLower"                  "toLower"           ["Строки"]
-    ,F "Data.Char.toUpper"                  "toUpper"           ["Строки"]
-    ,F "Data.Char.digitToInt"               "digitToInt"        ["Строки"]
-    ,F "Data.String.Utils.replace"          "replace"           ["Строки"]
-    ,F "Prelude.read"                       "read"              ["Строки"]
-    ,F "Prelude.show"                       "show"              ["Строки"]
-        
-    ,F "Data.String.Utils.startswith"       "startswith"        ["Строки"]
-        
-    ,F "Prelude.concat"                     "concat"            ["Строки"]
-    
-    ,F "Prelude.not"                        "not"               ["Логика"]
-    ,F "Prelude.(==)"                       "=="                ["Логика"]
-    ,F "Prelude.(/=)"                       "/="                ["Логика"]
-    ,F "Prelude.(&&)"                       "&&"                ["Логика"]
-        
-    ,F "Prelude.null"                       "null"              ["Логика","Строки"]
-    ,F "Data.Char.isNumber"                 "isNumber"          ["Логика","Строки"]
-            
-    ,F "Data.Maybe.isJust"                  "isJust"            ["Исключения"]
-    ,F "Data.Maybe.isNothing"               "isNothing"         ["Исключения"]
-    ,F "Data.List.isPrefixOf"               "isPrefixOf"        ["Логика","Строки"]
-    ,F "Data.List.isSuffixOf"               "isSuffixOf"        ["Логика","Строки"]
-        
-    ,F "Prelude.print"                      "print"             ["Ввод-вывод"]
-    ,F "Prelude.putStrLn"                   "putStrLn"          ["Ввод-вывод", "Строки"]
-    ,F "Prelude.getLine"                    "getLine"           ["Ввод-вывод", "Строки"]
-            
-    ,F "Prelude.(+)"                        "+"                 ["Арифметика"]
-    ,F "Prelude.(*)"                        "*"                 ["Арифметика"]
-    ,F "Prelude.(-)"                        "-"                 ["Арифметика"]
-    ,F "Prelude.(/)"                        "/"                 ["Арифметика"]
-    ,F "Prelude.div"                        "div"               ["Арифметика"]
-            
-    ,F "Prelude.fst"                        "fst"               ["Кортежи"]
-    ,F "Prelude.snd"                        "snd"               ["Кортежи"]
-    ,F "Data.Tuple.Select.sel3"             "sel3"              ["Кортежи"]
-                    
-    ,F "Prelude.($)"                        "$"                 ["Композиция"]
-    ,F "Prelude.(.)"                        "."                 ["Композиция"]
-        
-    ,F "Control.Exception.catch"            "catch"             ["Исключения"] 
-    ,F "Control.Exception.handle"           "handle"            ["Исключения"]
-    ,F "Control.Exception.try"              "try"               ["Исключения"]
-    ,F "Control.Exception.throw"            "throw"             ["Исключения"]
-    ,F "Control.Monad.Error.runErrorT"      "runErrorT"         ["Исключения"]
-    ,F "Control.Monad.Error.throwError"     "throwError"        ["Исключения"]
-    ,F "Control.Monad.Trans.Either.left"    "left"              ["Исключения"]
-    ,F "Control.Monad.Trans.Either.right"   "right"             ["Исключения"]
-    ,F "Data.Maybe.fromJust"                "fromJust"          ["Исключения"]]
+    ,C "Prelude.concat"                     "concat"            ["Функция","Строки"]
+                                             
+    ,C "Prelude.not"                        "not"               ["Функция","Логика"]
+    ,C "Prelude.(==)"                       "=="                ["Функция","Логика"]
+    ,C "Prelude.(/=)"                       "/="                ["Функция","Логика"]
+    ,C "Prelude.(&&)"                       "&&"                ["Функция","Логика"]
+                                                 
+    ,C "Prelude.null"                       "null"              ["Функция","Логика","Строки"]
+    ,C "Data.Char.isNumber"                 "isNumber"          ["Функция","Логика","Строки"]
+                                            
+    ,C "Data.Maybe.isJust"                  "isJust"            ["Функция","Исключения"]
+    ,C "Data.Maybe.isNothing"               "isNothing"         ["Функция","Исключения"]
+    ,C "Data.List.isPrefixOf"               "isPrefixOf"        ["Функция","Логика","Строки"]
+    ,C "Data.List.isSuffixOf"               "isSuffixOf"        ["Функция","Логика","Строки"]
+                                                   
+    ,C "Prelude.print"                      "print"             ["Функция","Ввод-вывод"]
+    ,C "Prelude.putStrLn"                   "putStrLn"          ["Функция","Ввод-вывод", "Строки"]
+    ,C "Prelude.getLine"                    "getLine"           ["Функция","Ввод-вывод", "Строки"]
+                                                      
+    ,C "Prelude.(+)"                        "+"                 ["Функция","Арифметика"]
+    ,C "Prelude.(*)"                        "*"                 ["Функция","Арифметика"]
+    ,C "Prelude.(-)"                        "-"                 ["Функция","Арифметика"]
+    ,C "Prelude.(/)"                        "/"                 ["Функция","Арифметика"]
+    ,C "Prelude.div"                        "div"               ["Функция","Арифметика"]
+                                                        
+    ,C "Prelude.fst"                        "fst"               ["Функция","Кортежи"]
+    ,C "Prelude.snd"                        "snd"               ["Функция","Кортежи"]
+    ,C "Data.Tuple.Select.sel3"             "sel3"              ["Функция","Кортежи"]
+                                                           
+    ,C "Prelude.($)"                        "$"                 ["Функция","Композиция"]
+    ,C "Prelude.(.)"                        "."                 ["Функция","Композиция"]
+                                                          
+    ,C "Control.Exception.catch"            "catch"             ["Функция","Исключения"] 
+    ,C "Control.Exception.handle"           "handle"            ["Функция","Исключения"]
+    ,C "Control.Exception.try"              "try"               ["Функция","Исключения"]
+    ,C "Control.Exception.throw"            "throw"             ["Функция","Исключения"]
+    ,C "Control.Monad.Error.runErrorT"      "runErrorT"         ["Функция","Исключения"]
+    ,C "Control.Monad.Error.throwError"     "throwError"        ["Функция","Исключения"]
+    ,C "Control.Monad.Trans.Either.left"    "left"              ["Функция","Исключения"]
+    ,C "Control.Monad.Trans.Either.right"   "right"             ["Функция","Исключения"]
+    ,C "Data.Maybe.fromJust"                "fromJust"          ["Функция","Исключения"]]
     
 {-Section "Веб"
     ["fPutStr"
