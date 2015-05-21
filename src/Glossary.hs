@@ -51,12 +51,11 @@ dirWalk top   = do
 corresponds :: FilePath -> [Construction] -> IO [Correspond]
 corresponds path  constrs = do 
     mDs <- dirWalk pathToChapters
- 
-    forM mDs (\md -> do
-        hs <- hsInFile md
-        fmap  (\constr -> do
-            Corr (head (tags constr))  (inHackage constr)  path ) (filter (hasMatches hs) 
-            constrs)) 
+   
+    return $ fmap (\md -> do
+            hs <- hsInFile md
+            return $ fmap  (\constr -> Corr (head (tags constr)) (inHackage constr) path) (filter (hasMatches hs) constrs)
+            ) mDs
         
  
 
