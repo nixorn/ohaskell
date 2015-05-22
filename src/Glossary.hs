@@ -12,6 +12,9 @@ module Glossary (
     ,corresponds
     ,pathToChapters
     ,dirWalk
+    ,hasMatches
+    ,hsInFile
+    ,unpackConstructions
 ) where 
     
     
@@ -51,7 +54,7 @@ corresponds path  constrs = do
    
     corrs <- mapM (\md -> do
             hs <- hsInFile md
-            mapM (\constr -> return $ Corr (head (tags constr)) (inHackage constr) path) (filter (hasMatches hs) constrs)
+            mapM (\constr -> return $ Corr (head (tags constr)) (inHackage constr) md) (filter (hasMatches hs) constrs)
             
             ) mDs
     return . concat $ corrs
@@ -66,7 +69,7 @@ hasMatches code constr =
 hsInFile :: FilePath -> IO HsInFile 
 hsInFile fspath = do
     file <- readFile fspath
-    return $ foldl (++) [] $ tail $ fmap head $ fmap  (splitOn "'''") $ splitOn "'''haskell" file
+    return $ foldl (++) [] $ tail $ fmap head $ fmap  (splitOn "```") $ splitOn "```haskell" file
 
 
     
