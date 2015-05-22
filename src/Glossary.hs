@@ -6,14 +6,11 @@ nextChapter: /ru/index.html
 ----
 [О форматировании](/ru/miscellaneous/about-formatting.html)
 
-Данный документ где то здесь:
-Чем является конструкция ----------------------------------------------*--- Что делает конструкция в этой книге
-
-Предназначен он не для того, чтобы в подробностях узнать что делает та или иная конструкция, поскольку классификация ограничена материалом этой книги. Для подробностей есть другие ресурсы. Это указатель для облегченной навигации. 
 -}
 module Glossary (
-    instructions
-    ,functions
+    constructions
+    ,corresponds
+    ,pathToChapters
     ,dirWalk
 ) where 
     
@@ -26,7 +23,7 @@ import qualified Data.List as L
 
 
 
-pathToChapters = "../chapters/ru"
+pathToChapters = "../chapters/ru/"
 
 type Contents = String
 
@@ -52,11 +49,12 @@ corresponds :: FilePath -> [Construction] -> IO [Correspond]
 corresponds path  constrs = do 
     mDs <- dirWalk pathToChapters
    
-    return $ fmap (\md -> do
+    corrs <- mapM (\md -> do
             hs <- hsInFile md
-            return $ fmap  (\constr -> Corr (head (tags constr)) (inHackage constr) path) (filter (hasMatches hs) constrs)
+            mapM (\constr -> return $ Corr (head (tags constr)) (inHackage constr) path) (filter (hasMatches hs) constrs)
+            
             ) mDs
-        
+    return . concat $ corrs
  
 
 --Встречается ли конструкция в данном тексте?
@@ -68,14 +66,16 @@ hasMatches code constr =
 hsInFile :: FilePath -> IO HsInFile 
 hsInFile fspath = do
     file <- readFile fspath
-    return $ foldl1 (++) $ tail $ fmap head $ fmap  (splitOn "'''") $ splitOn "'''haskell" file
+    return $ foldl (++) [] $ tail $ fmap head $ fmap  (splitOn "'''") $ splitOn "'''haskell" file
 
 
     
         
 unpackConstructions :: Constructions a => [a] -> [a]
-unpackConstructions (x:xs) =  unpackConstructions xs ++ reconstruct x
+unpackConstructions [] = []
 unpackConstructions (x:[]) = [x]
+unpackConstructions (x:xs) =  unpackConstructions xs ++ reconstruct x
+
 
 
 
@@ -87,7 +87,7 @@ type Tag = String
 
 data Construction       = C FullName NameInBook [Tag]
 
-data Correspond     = Corr Tag FullName FilePath --где встречается
+data Correspond     = Corr Tag FullName FilePath  deriving Show--где встречается
 
 type HsCode         = String
 type HsInFile       = String
@@ -103,8 +103,9 @@ instance Constructions Construction where
     inHackage (C a _ _) =   a
     tags (C _ _ a) =        a
     {-    reconstruct C "a" "a" ["1", "2"] = [C "a" "a" ["1"] , C "a" "a" ["2"]]    -}
-    reconstruct (C n1 n2 (x:xs)) =  reconstruct (C n1 n2 xs) ++ [C n1 n2 [x]]
     reconstruct (C n1 n2 (x:[])) =  [C n1 n2 [x]]
+    reconstruct (C n1 n2 (x:xs)) =  reconstruct (C n1 n2 xs) ++ [C n1 n2 [x]]
+    
 
 
 
