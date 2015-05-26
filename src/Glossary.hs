@@ -54,7 +54,8 @@ instance Constructions Construction where
     {-    reconstruct C "a" "a" ["1", "2"] = [C "a" "a" ["1"] , C "a" "a" ["2"]]    -}
     reconstruct (C n1 n2 (x:[])) =  [C n1 n2 [x]]
     reconstruct (C n1 n2 (x:xs)) =  reconstruct (C n1 n2 xs) ++ [C n1 n2 [x]]
-
+{-
+--
 instance  Ord Construction  where
     --compare              :: a -> a -> Ordering
     --(<), (<=), (>=), (>) :: a -> a -> Bool
@@ -79,7 +80,7 @@ instance  Ord Construction  where
          | otherwise =  y
     min x y
          | x <  y    =  x
-         | otherwise =  y
+         | otherwise =  y-}
     
 --ищем во всех поддиректориях файлики с расширением .md
 dirWalk :: FilePath -> IO [FilePath]
